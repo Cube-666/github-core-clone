@@ -236,7 +236,7 @@ export async function handleRest(forge: Forge, req: IncomingMessage, res: Server
       return true;
     }
     // POST /repos/:owner/:name/git/refs
-    if (tail.length === 3 && tail[0] === 'git' && tail[1] === 'refs' && method === 'POST') {
+    if (tail.length === 2 && tail[0] === 'git' && tail[1] === 'refs' && method === 'POST') {
       const body = await readJsonBody(ctx);
       if (body === undefined) return true;
       if (!isRecord(body) || typeof body.ref !== 'string' || typeof body.sha !== 'string') {
