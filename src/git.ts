@@ -173,9 +173,17 @@ export function buildTreeForPaths(repo: Repo, paths: Map<string, string>): strin
     const dir = slash < 0 ? '' : path.slice(0, slash);
     const name = slash < 0 ? path : path.slice(slash + 1);
     ensureDir(dir).set(name, { mode: '100644', oid });
+    // Every ancestor directory needs a tree of its own, even when it holds
+    // no files directly (it only contains subdirectories).
+    let ancestor = dir;
+    while (ancestor !== '') {
+      ancestor = ancestor.includes('/') ? ancestor.slice(0, ancestor.lastIndexOf('/')) : '';
+      ensureDir(ancestor);
+    }
   }
   // Directories, deepest first, so a parent can reference its child's tree.
-  const dirs = [...byDir.keys()].sort((a, b) => b.split('/').length - a.split('/').length || (a < b ? -1 : 1));
+  const depthOf = (dir: string): number => (dir === '' ? 0 : dir.split('/').length);
+  const dirs = [...byDir.keys()].sort((a, b) => depthOf(b) - depthOf(a) || (a < b ? -1 : 1));
   const treeOidByDir = new Map<string, string>();
   for (const dir of dirs) {
     const entries: TreeEntry[] = [];

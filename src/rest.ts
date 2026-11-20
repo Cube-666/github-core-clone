@@ -263,7 +263,7 @@ export async function handleRest(forge: Forge, req: IncomingMessage, res: Server
     // Contents: /repos/:owner/:name/contents/<path...>
     if (tail.length >= 1 && tail[0] === 'contents') {
       const contentPath = tail.slice(1).join('/');
-      if (contentPath === '') {
+      if (contentPath === '' && method !== 'GET') {
         notFound(ctx);
         return true;
       }

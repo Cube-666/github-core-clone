@@ -9,6 +9,7 @@ import {
   hashObject,
   mergeBase,
   parseCommit,
+  parseTree,
   reachable,
   storeObject,
   threeWayMerge,
@@ -249,7 +250,7 @@ export function readContent(repo: Repo, path: string, ref?: string): ContentRead
     };
   }
   // A directory: every path below it, grouped one level down.
-  const prefix = `${path}/`;
+  const prefix = path === '' ? '' : `${path}/`;
   const entries = new Map<string, { type: 'file' | 'dir'; name: string; path: string; sha: string }>();
   for (const [filePath, blobOid] of flat) {
     if (!filePath.startsWith(prefix)) continue;
@@ -260,7 +261,7 @@ export function readContent(repo: Repo, path: string, ref?: string): ContentRead
     } else {
       const dirName = rest.slice(0, slash);
       if (!entries.has(dirName)) {
-        const dirPath = `${path}/${dirName}`;
+        const dirPath = path === '' ? dirName : `${path}/${dirName}`;
         const treeOid = treeOidForPath(repo, parseCommit(commit.data).tree, dirPath) ?? hashObject('tree', Buffer.alloc(0));
         entries.set(dirName, { type: 'dir', name: dirName, path: dirPath, sha: treeOid });
       }
@@ -454,8 +455,20 @@ export function fetchPlan(
     exclude,
     excludeShallow,
   });
+  // Never re-send an object the client already holds: the full closure of
+  // every plain have, plus the boundary commit and its tree for every
+  // shallow boundary (a shallow clone holds those, but not their history).
+  const held = new Set<string>();
+  const plainHaves = haves.filter((have) => !shallowBoundaries.includes(have));
+  if (plainHaves.length > 0) {
+    for (const oid of reachable(repo, plainHaves).objects) held.add(oid);
+  }
+  for (const boundary of shallowBoundaries) {
+    for (const oid of reachable(repo, [boundary], { maxDepth: 1 }).objects) held.add(oid);
+  }
   const objects: Array<{ oid: string; type: 'commit' | 'tree' | 'blob' | 'tag'; data: Buffer }> = [];
   for (const oid of closure.objects) {
+    if (held.has(oid)) continue;
     const obj = repo.objects.get(oid);
     if (obj !== undefined) objects.push({ oid, type: obj.type, data: obj.data });
   }
